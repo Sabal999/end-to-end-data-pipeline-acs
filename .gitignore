@@ -1,0 +1,7 @@
+__py_cache__/
+*.pyc
+data/
+output/
+.env
+*.ipynb
+.venv

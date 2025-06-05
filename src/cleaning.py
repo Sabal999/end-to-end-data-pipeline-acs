@@ -7,16 +7,17 @@ from datetime import datetime
 from io import StringIO
 from pathlib import Path
 
-
 configure_logging()
 logger = logging.getLogger(__name__)
 
 
-# Your existing cleaning function
 def df_cleaner(df: pd.DataFrame) -> pd.DataFrame:
-    # Implement your cleaning here
-    df["income"] = 0
-    return df  # placeholder
+    return (
+        df.pipe(df_standardize_dtypes)
+        .pipe(reclassify_not_employed)
+        .pipe(set_zero_income_as_null)
+        .pipe(simplify_birth_quarter)
+    )
 
 
 async def a_preprocess(output_dir: Path, file_path: Path):
@@ -34,13 +35,62 @@ async def a_preprocess(output_dir: Path, file_path: Path):
     name, ext = os.path.splitext(base_name)
     now = datetime.now()
     timestamp = (
-        now.strftime("%Y_%m_%d_%H_%M_%S_")
+        now.strftime("%y_%m_%d_%H_%M_%S_")
         + f"{now.microsecond // 1000:03d}"
     )
-    output_file = os.path.join(
-        output_dir, f"{name}_cleaned_{timestamp}{ext}"
-    )
-
+    output_file = output_dir / f"{name}_{timestamp}{ext}"
     # Save cleaned DataFrame synchronously (pandas doesn't support async writes)
-    clean_df.to_csv(output_file, index=False)
-    logger.info(f"Processed and saved: {output_file}")
+    clean_df.to_csv(
+        output_file,
+        index=False,
+    )
+    logger.info(f"cleaned and stored: {output_file}")
+
+
+def df_standardize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    for column in [
+        "income",
+        "hrs_work",
+        "time_to_work",
+    ]:
+        df[column] = df[column].astype("float64")
+    for column in [
+        "employment",
+        "race",
+        "age",
+        "gender",
+        "lang",
+        "edu",
+    ]:
+        df[column] = df[column].astype("string")
+    for column in ["citizen", "married", "disability"]:
+        df[column] = df[column].map({"yes": True, "no": False})
+        df[column] = df[column].astype("bool")
+    df["age"] = df["age"].astype("int64")
+    return df
+
+
+# def drop_children(df: pd.DataFrame) -> pd.DataFrame:
+#     return df[df["age"] > 15]
+
+
+def reclassify_not_employed(df: pd.DataFrame) -> pd.DataFrame:
+    df.loc[df["hrs_work"] > 0, "employment"] = "employed"
+    return df
+
+
+def simplify_birth_quarter(df: pd.DataFrame) -> pd.DataFrame:
+    df["birth_qrtr"] = df["birth_qrtr"].map(
+        {
+            "jan thru mar": "q1",
+            "apr thru jun": "q2",
+            "jul thru sep": "q3",
+            "oct thru dec": "q4",
+        }
+    )
+    return df
+
+
+def set_zero_income_as_null(df: pd.DataFrame) -> pd.DataFrame:
+    df.loc[df["income"] == 0, "income"] = pd.NA
+    return df

@@ -10,6 +10,6 @@ def configure_logging():
         filename=f"{log_folder}/pipeline.log",
         filemode="w",
         level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        format="%(asctime)s - %(name)s - %(message)s",
         datefmt="%H:%M:%S",
     )

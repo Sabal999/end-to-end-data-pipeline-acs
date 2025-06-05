@@ -31,6 +31,5 @@ def simulate_ingestion(data_source_path: Path, data_lake_pth: Path):
         filename = f"{data_lake_pth}/acs{i+1}of{df_length}.csv"
         logger.info(f"Ingesting  {filename}")
         sources_aggregation_df.to_csv(filename, index=False)
-    logger.info(
-        f"Ingestion Complete.\n{df_length} csv files have landed to the data lake"
-    )
+    logger.info(f"{df_length} csv files have landed on the data lake")
+    logger.info("Ingestion Complete.")

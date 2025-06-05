@@ -1,12 +1,11 @@
 import logging
 from logger import configure_logging
 import asyncio
-import glob
-import os
 from pathlib import Path
-
+import pandas as pd
 from simulate_ingestion import simulate_ingestion
 from cleaning import a_preprocess
+from transform import apply_transformations, generate_summary_tables
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -28,7 +27,20 @@ async def main():
         for csv_file_path in csv_file_paths
     ]
     await asyncio.gather(*tasks)
-    logger.info("All files have been processed and saved.")
+    logger.info(
+        "all files have been cleaned and stored in the staging area"
+    )
+    df = pd.concat(
+        [
+            pd.read_csv(path)
+            for path in Path(STAGING_AREA_DIR).glob("*.csv")
+        ],
+        ignore_index=True,
+    )
+
+    # spark_df = apply_transformations(df)
+    # summary1, summary2 = generate_summary_tables(spark_df)
+    df.to_csv("debug.csv", index=False)
 
 
 if __name__ == "__main__":

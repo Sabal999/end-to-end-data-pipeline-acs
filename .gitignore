@@ -1,7 +1,9 @@
 __py_cache__/
 *.pyc
-data/
+data/data_lake/
+data/staging_area/
 output/
 .env
 *.ipynb
 .venv
+

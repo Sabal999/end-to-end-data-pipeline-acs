@@ -9,7 +9,6 @@ from pyspark.sql.functions import (
     count,
     avg as spark_avg,
     dense_rank,
-    row_number,
     round as spark_round,
     percentile_approx,
 )
@@ -100,22 +99,17 @@ def generate_fact_paid_workers_table(
     )
 
     paid_workers_df = sdf.filter(
-        (col("employment") == "employed")
-        & (~col("is_unpaid_worker"))
-        & (col("income").isNotNull())
+        (col("employment") == "employed") & (~col("is_unpaid_worker"))
     )
 
     paid_workers_df = (
         paid_workers_df.withColumn(
-            "income_percentile",
+            "income_percentile_within_age_group",
             spark_round(percent_rank().over(window_spec), 3),
         )
         .withColumn(
-            "rank_within_age_group", dense_rank().over(window_spec_desc)
-        )
-        .withColumn(
-            "row_number_within_age_group",
-            row_number().over(window_spec_desc),
+            "income_rank_within_age_group",
+            dense_rank().over(window_spec_desc),
         )
         .withColumn(
             "avg_income_by_age_group",
@@ -168,7 +162,7 @@ def generate_data_mart_work_summary_by_gender(
     )
 
 
-# This data mart derives from fact_population
+# This data mart derives from fact_paid_workers
 def generate_data_mart_population_summary_by_age_group(
     sdf: DataFrame,
 ) -> DataFrame:

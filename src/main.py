@@ -5,7 +5,17 @@ from pathlib import Path
 import pandas as pd
 from simulate_ingestion import simulate_ingestion
 from cleaning import a_preprocess
-from transform import apply_transformations, generate_summary_tables
+from transform import (
+    apply_transformations_into_fact_population,
+    generate_fact_paid_workers_table,
+    generate_data_mart_work_summary_by_gender,
+    generate_data_mart_children_percentage_by_race_gender,
+    generate_data_mart_education_distribution_among_unemployed,
+    generate_data_mart_income_above_median_by_edu,
+    generate_data_mart_population_summary_by_age_group,
+    generate_data_mart_income_summary_by_demo,
+    generate_data_mart_unemployed_percentage_by_age_group_gender,
+)
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -43,6 +53,7 @@ async def main():
 
     # notebook df export
     df.to_pickle("debug.pkl")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -9,4 +9,5 @@ output/
 .vscode
 acs_export.csv
 debug.pkl
-
+error.txt
+artifacts

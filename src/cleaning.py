@@ -121,6 +121,5 @@ def df_drop_duplicates_merged_df(df: pd.DataFrame) -> pd.DataFrame:
     logger.info(
         f"{length_before - len(df)} rows removed, {len(df)} rows remaining"
     )
-    print(logger.handlers, logger.level, logger.propagate)
 
     return df

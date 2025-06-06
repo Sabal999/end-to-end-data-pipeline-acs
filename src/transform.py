@@ -14,6 +14,8 @@ from pyspark.sql.functions import (
 )
 from pyspark.sql.types import StringType, BooleanType, DoubleType
 import pandas as pd
+from pyspark.sql.functions import when, col, isnan, lit
+from pyspark.sql.types import FloatType, DoubleType, StringType
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -64,13 +66,32 @@ def apply_transformations_into_fact_population(
         employment: str, hrs_work: float, income: float
     ) -> bool:
         return employment == "employed" and hrs_work > 0 and income == 0
+    
+
+    def final_clean_nan(sdf):
+        for field in sdf.schema.fields:
+            c = field.name
+            dtype = field.dataType
+
+            if isinstance(dtype, (FloatType, DoubleType)):
+                # For float/double columns → replace NaN with NULL
+                sdf = sdf.withColumn(c, when(isnan(col(c)), None).otherwise(col(c)))
+
+            elif isinstance(dtype, StringType):
+                # For string columns → replace literal "NaN" with NULL
+                sdf = sdf.withColumn(c, when(col(c) == lit("NaN"), None).otherwise(col(c)))
+
+            # other column types → leave unchanged
+        return sdf
 
     age_udf = udf(categorize_age, StringType())
     income_bracket_udf = udf(categorize_income_bracket, StringType())
     income_category_udf = udf(categorize_income_category, StringType())
     unpaid_udf = udf(unpaid_worker, BooleanType())
 
-    spark = SparkSession.builder.getOrCreate()
+    spark = SparkSession.builder.config(
+        "spark.jars", "jars/postgresql-42.7.3.jar"
+    ).getOrCreate()
     sdf = spark.createDataFrame(df)
 
     sdf = sdf.withColumn("age_group", age_udf(col("age")))
@@ -84,7 +105,7 @@ def apply_transformations_into_fact_population(
         "is_unpaid_worker",
         unpaid_udf(col("employment"), col("hrs_work"), col("income")),
     )
-
+    sdf = final_clean_nan(sdf)
     return sdf
 
 
@@ -242,3 +263,5 @@ def generate_data_mart_education_distribution_among_unemployed(
         .agg(count("*").alias("unemployed_count"))
         .orderBy(col("unemployed_count").desc())
     )
+
+

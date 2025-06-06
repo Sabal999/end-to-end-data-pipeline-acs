@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 import pandas as pd
 from simulate_ingestion import simulate_ingestion
-from cleaning import a_preprocess
+from cleaning import a_preprocess, df_drop_duplicates_merged_df
 from transform import (
     apply_transformations_into_fact_population,
     generate_fact_paid_workers_table,
@@ -47,6 +47,7 @@ async def main():
         ],
         ignore_index=True,
     )
+    df = df_drop_duplicates_merged_df(df)
 
     # spark_df = apply_transformations(df)
     # summary1, summary2 = generate_summary_tables(spark_df)

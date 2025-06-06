@@ -103,3 +103,24 @@ def set_zero_commute_time_as_zero_for_employed(
         "time_to_work",
     ] = 0
     return df
+
+def df_drop_duplicates_merged_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Since the data is anonymous, I had to target only employed people
+    in removing the  duplicates.
+    Otherwise non-employed people with missing employment-related data
+    would be removed unnecessarily
+    """
+    logger.info("Removing Duplicates")
+    length_before = len(df)
+    df_filtered = df[(df["employment"] == "employed")]
+    df_no_dupes = df_filtered.drop_duplicates()
+    df = pd.concat(
+        [df_no_dupes, df[(df["employment"] != "employed")]]
+    )
+    logger.info(
+        f"{length_before - len(df)} rows removed, {len(df)} rows remaining"
+    )
+    print(logger.handlers, logger.level, logger.propagate)
+
+    return df

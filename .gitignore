@@ -7,4 +7,6 @@ output/
 *.ipynb
 .venv
 .vscode
+acs_export.csv
+debug.pkl
 

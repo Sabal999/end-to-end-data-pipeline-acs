@@ -32,16 +32,17 @@ async def main():
     )
     df = pd.concat(
         [
-            pd.read_csv(path)
-            for path in Path(STAGING_AREA_DIR).glob("*.csv")
+            pd.read_pickle(path)
+            for path in Path(STAGING_AREA_DIR).glob("*.pkl")
         ],
         ignore_index=True,
     )
 
     # spark_df = apply_transformations(df)
     # summary1, summary2 = generate_summary_tables(spark_df)
-    df.to_csv("debug.csv", index=False)
 
+    # notebook df export
+    df.to_pickle("debug.pkl")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -15,8 +15,8 @@ def df_cleaner(df: pd.DataFrame) -> pd.DataFrame:
     return (
         df.pipe(df_standardize_dtypes)
         .pipe(reclassify_not_employed)
-        .pipe(set_zero_income_as_null)
         .pipe(simplify_birth_quarter)
+        .pipe(set_zero_commute_time_as_zero_for_employed)
     )
 
 
@@ -32,17 +32,16 @@ async def a_preprocess(output_dir: Path, file_path: Path):
 
     # Create unique output filename
     base_name = os.path.basename(file_path)
-    name, ext = os.path.splitext(base_name)
+    name = os.path.splitext(base_name)[0]
     now = datetime.now()
     timestamp = (
         now.strftime("%y_%m_%d_%H_%M_%S_")
         + f"{now.microsecond // 1000:03d}"
     )
-    output_file = output_dir / f"{name}_{timestamp}{ext}"
+    output_file = output_dir / f"{name}_{timestamp}.pkl"
     # Save cleaned DataFrame synchronously (pandas doesn't support async writes)
-    clean_df.to_csv(
+    clean_df.to_pickle(
         output_file,
-        index=False,
     )
     logger.info(f"cleaned and stored: {output_file}")
 
@@ -62,7 +61,7 @@ def df_standardize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
         "lang",
         "edu",
     ]:
-        df[column] = df[column].astype("string")
+        df[column] = df[column].astype("object")
     for column in ["citizen", "married", "disability"]:
         df[column] = df[column].map({"yes": True, "no": False})
         df[column] = df[column].astype("bool")
@@ -93,4 +92,14 @@ def simplify_birth_quarter(df: pd.DataFrame) -> pd.DataFrame:
 
 def set_zero_income_as_null(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[df["income"] == 0, "income"] = pd.NA
+    return df
+
+
+def set_zero_commute_time_as_zero_for_employed(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    df.loc[
+        (df["employment"] == "employed") & (df["time_to_work"].isna()),
+        "time_to_work",
+    ] = 0
     return df

@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pipeline-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: pipeline-app
+        image: aandrio/pipeline_app:latest
+        env:
+        - name: POSTGRES_USER
+          value: "synthetica_user"
+        - name: POSTGRES_PASSWORD
+          value: "synthetica_pass"
+        - name: POSTGRES_HOST
+          value: "postgres"
+      restartPolicy: Never
+  backoffLimit: 1

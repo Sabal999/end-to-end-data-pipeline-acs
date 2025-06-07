@@ -17,6 +17,10 @@ from logger import configure_logging
 configure_logging()
 logger = logging.getLogger(__name__ + ".py")
 
+# POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+# POSTGRES_USER = os.getenv("POSTGRES_USER", "synthetica_user")
+# POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "synthetica_pass")
+
 
 def create_database_and_tables():
     # Step 1: connect to system database → create/drop acs_dataset

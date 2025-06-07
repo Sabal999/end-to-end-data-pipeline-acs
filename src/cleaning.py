@@ -1,3 +1,18 @@
+"""
+Cleaning module for ACS CSV chunks.
+
+Functions:
+- df_cleaner(): applies a sequence of cleaning functions to a pandas DataFrame.
+- a_preprocess(): asynchronously reads a CSV file, cleans it, and stores a cleaned pickle.
+- df_standardize_dtypes(): standardizes column types.
+- reclassify_not_employed(): marks rows with hrs_work > 0 as 'employed'.
+- simplify_birth_quarter(): maps full quarter names to q1-q4.
+- set_zero_income_as_null(): sets income==0 to NULL (pd.NA).
+- set_zero_commute_time_as_zero_for_employed(): sets missing commute time to 0 for employed workers.
+
+This module is used in the pipeline to prepare clean data for Spark processing.
+"""
+
 import logging
 from logger import configure_logging
 import pandas as pd
@@ -69,10 +84,6 @@ def df_standardize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# def drop_children(df: pd.DataFrame) -> pd.DataFrame:
-#     return df[df["age"] > 15]
-
-
 def reclassify_not_employed(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[df["hrs_work"] > 0, "employment"] = "employed"
     return df
@@ -107,10 +118,10 @@ def set_zero_commute_time_as_zero_for_employed(
 
 def df_drop_duplicates_merged_df(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Since the data is anonymous, I had to target only employed people
-    in removing the  duplicates.
-    Otherwise non-employed people with missing employment-related data
-    would be removed unnecessarily
+    Function for removing duplicates after the data has been merged
+    Only affects employed population. The reason for this is the 
+    amount of missing data in the non-employed population in combination
+    with the lack of a surrogate primary key field. 
     """
     logger.info("Removing Duplicates")
     length_before = len(df)

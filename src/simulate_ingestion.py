@@ -1,3 +1,10 @@
+"""
+Simulated ingestion module.
+Function:
+- simulate_ingestion(): reads the source CSV(s), splits them into smaller CSV chunks, and writes them to the data lake folder.
+This simulates multi-source ingestion by creating small CSV chunks to be cleaned asynchronously later.
+"""
+
 import logging
 from logger import configure_logging
 import pandas as pd

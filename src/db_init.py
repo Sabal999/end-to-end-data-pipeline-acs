@@ -1,18 +1,31 @@
+"""
+Database initialization module.
+
+Drops and recreates:
+- acs_dataset database
+- dim tables
+- fact table
+- Adds constraints and FK references.
+
+Used at the start of each pipeline run to ensure a clean database.
+"""
+
 import psycopg2
 import logging
 from logger import configure_logging
 
 configure_logging()
-logger = logging.getLogger(__name__ + '.py')
+logger = logging.getLogger(__name__ + ".py")
+
 
 def create_database_and_tables():
-    # Step 1 → connect to system database → create/drop acs_dataset
+    # Step 1: connect to system database → create/drop acs_dataset
     sys_conn = psycopg2.connect(
         host="localhost",
         port=5432,
         dbname="postgres",
         user="postgres",
-        password="Password21!!!"
+        password="Password21!!!",
     )
     sys_conn.autocommit = True
     sys_cur = sys_conn.cursor()
@@ -21,17 +34,18 @@ def create_database_and_tables():
     sys_cur.execute("DROP DATABASE IF EXISTS acs_dataset;")
     sys_cur.execute("CREATE DATABASE acs_dataset;")
 
+
     sys_cur.close()
     sys_conn.close()
     logger.info("Database acs_dataset created.")
 
-    # Step 2 → connect to acs_dataset → create tables
+    # Step 2: connect to acs_dataset database and create tables
     conn = psycopg2.connect(
         host="localhost",
         port=5432,
         dbname="acs_dataset",
         user="postgres",
-        password="Password21!!!"
+        password="Password21!!!",
     )
     cur = conn.cursor()
 
@@ -47,18 +61,21 @@ def create_database_and_tables():
 
     for dim_name, column_name in dims.items():
         logger.info(f"Creating table {dim_name}...")
-        cur.execute(f"""
+        cur.execute(
+            f"""
             DROP TABLE IF EXISTS {dim_name} CASCADE;
             CREATE TABLE {dim_name} (
                 id SERIAL PRIMARY KEY,
                 {column_name} TEXT UNIQUE
             );
-        """)
+        """
+        )
         logger.info(f"Created table {dim_name}.")
 
-    # Create FACT table → using _id postfix for FKs
+    # Create FACT table using _id postfix for FKs
     logger.info("Creating table fact_population...")
-    cur.execute("""
+    cur.execute(
+        """
         DROP TABLE IF EXISTS fact_population CASCADE;
         CREATE TABLE fact_population (
             id SERIAL PRIMARY KEY,
@@ -76,7 +93,8 @@ def create_database_and_tables():
             married BOOLEAN,
             disability BOOLEAN
         );
-    """)
+    """
+    )
     logger.info("Created table fact_population.")
 
     # Done
@@ -85,4 +103,3 @@ def create_database_and_tables():
     conn.close()
 
     logger.info("All DIM + FACT tables created successfully.")
-

@@ -1,3 +1,16 @@
+"""
+Spark pipeline module.
+
+Contains:
+- populate_dims(): populate dimension tables.
+- populate_fact(): populate fact table.
+- build_intermediate_mart(): create enriched intermediate mart.
+- build_final_marts(): create final marts with various metrics.
+
+Uses SparkSQL as much as possible.
+UDFs are used for complex metrics not easily written in SQL.
+"""
+
 import logging
 from logger import configure_logging
 from pyspark.sql import SparkSession
@@ -6,7 +19,7 @@ import pandas as pd
 
 
 configure_logging()
-logger = logging.getLogger(__name__ + '.py')
+logger = logging.getLogger(__name__ + ".py")
 
 POSTGRES_URL = "jdbc:postgresql://localhost:5432/acs_dataset"
 POSTGRES_PROPERTIES = {
@@ -15,17 +28,28 @@ POSTGRES_PROPERTIES = {
     "driver": "org.postgresql.Driver",
 }
 
+
 def get_spark_session():
     spark = SparkSession.builder.config(
         "spark.jars", "jars/postgresql-42.7.3.jar"
     ).getOrCreate()
     return spark
 
-def register_cleaned_df_as_view(spark: SparkSession, df_cleaned: pd.DataFrame):
+
+def register_cleaned_df_as_view(
+    spark: SparkSession, df_cleaned: pd.DataFrame
+):
+    """
+    Load data into a temp view, replace 'NaN' with NULL and cache.
+    Caching ensures that our temp view will not be materialized
+    over and over again while creating dim and fact tables.
+    """
     sdf = spark.createDataFrame(df_cleaned)
     sdf.createOrReplaceTempView("acs_raw_cleaned")
 
-    logger.info("Building acs_cleaned view with final_clean_nan logic in SparkSQL...")
+    logger.info(
+        "Building acs_cleaned view with final_clean_nan logic in SparkSQL..."
+    )
 
     clean_query = """
         CREATE OR REPLACE TEMP VIEW acs_cleaned AS
@@ -48,9 +72,16 @@ def register_cleaned_df_as_view(spark: SparkSession, df_cleaned: pd.DataFrame):
 
     spark.sql(clean_query)
     spark.catalog.cacheTable("acs_cleaned")
-    logger.info("Registered and cached acs_cleaned as SparkSQL temp view (with NaN cleaning).")
+    logger.info(
+        "Registered and cached acs_cleaned as SparkSQL temp view (with NaN cleaning)."
+    )
+
 
 def populate_dims(spark: SparkSession):
+    """
+    Populate dimension tables from acs_cleaned Spark view.
+    Appends to dim tables (preserving SERIAL id).
+    """
     logger.info("Populating DIM tables (pure SparkSQL)...")
 
     dims = [
@@ -79,7 +110,13 @@ def populate_dims(spark: SparkSession):
         )
         logger.info(f"Finished writing {dim_table}.")
 
+
 def populate_fact(spark: SparkSession):
+    """
+    Populate fact table from acs_cleaned Spark view.
+    Uses FK references to dim tables.
+    Appends to fact table (preserving SERIAL id).
+    """
     logger.info("Populating FACT table fact_population...")
 
     dim_tables = [
@@ -101,7 +138,7 @@ def populate_fact(spark: SparkSession):
         dim_df.createOrReplaceTempView(dim_table)
         logger.info(f"Registered {dim_table} as SparkSQL temp view.")
 
-    # Build FACT via SparkSQL JOINs
+    # Build FACT by retrieving dim table FK using JOINs (lookups)
     fact_query = """
         SELECT
             dim_employment.id AS employment_id,
@@ -137,10 +174,22 @@ def populate_fact(spark: SparkSession):
     )
     logger.info("Finished populating FACT table fact_population.")
 
+
 def build_intermediate_mart(spark: SparkSession):
+    """
+    Build int_population_enriched table.
+
+    Column Additions:
+    - categorize_age
+    - paid_worker
+    - income_category
+    - commute_time_percentile
+    - hrs_work_percentile
+    """
     logger.info("Building intermediate MART int_population_enriched...")
 
-    spark.sql("""
+    spark.sql(
+        """
         CREATE OR REPLACE TEMP VIEW int_population_enriched AS
         SELECT
             employment,
@@ -178,7 +227,9 @@ def build_intermediate_mart(spark: SparkSession):
             END AS income_category,
             PERCENT_RANK() OVER (PARTITION BY gender, employment ORDER BY hrs_work) AS hrs_work_percentile
         FROM acs_cleaned
-    """)
+        ORDER BY income DESC
+    """
+    )
 
     logger.info("Writing int_population_enriched to Postgres...")
 
@@ -193,37 +244,42 @@ def build_intermediate_mart(spark: SparkSession):
 
 
 def build_final_marts(spark: SparkSession):
+    """
+    Build final marts:
+    - dmart_avg_income
+    - dmart_avg_hrs_work
+    - dmart_avg_commute_stress_score
+    - dmart_pct_children_by_race
+    - dmart_avg_employment_stress_score
+    """
     logger.info("Building DATA MARTS...")
 
     # Define UDF 1
-    def compute_commute_stress_score(time_to_work: float, hrs_work: float, age_group: str) -> float:
+    def compute_commute_stress_score(
+        time_to_work: float, hrs_work: float, age_group: str
+    ) -> float:
         """
         Computes a commute-related stress score.
-
         Logic idea:
-        - Long commute time → increases stress.
-        - Long working hours → increases stress → tiredness amplifies commute stress.
-        - Seniors → higher stress from same commute.
-        - Gender → optional modifier.
-
+        - Long commute time increases stress.
+        - Long working hours increases stress through fatigue
+        - Seniors more insecure when driving
         Output:
-        - Float score → higher = more stress.
+        - Float score -> higher = more stress.
         """
 
-        # Base commute stress → exponential scaling
-        commute_stress = min(time_to_work / 60.0, 1.0) ** 2 * 50  # 0-50 stress points
+        # Base commute stress highest weight
+        commute_stress = (
+            min(time_to_work / 60.0, 1.0) ** 2 * 50
+        )  # 0-50 stress points
 
-        # Work hours modifier → more hours → amplifies commute stress
-        hrs_modifier = min(hrs_work / 60.0, 1.0) * 0.5 + 1.0  # multiplier ~1.0-1.5
+        # Work hours modifier increases fatigue
+        hrs_modifier = min(hrs_work / 60.0, 1.0) * 0.5  # multiplier 0.5
 
         # Age modifier
-        if age_group == 'senior':
+        if age_group == "senior":
             age_modifier = 1.5
-        elif age_group == 'child':  # should not happen for paid_worker
-            age_modifier = 1.0
-        elif age_group == 'young_adult':
-            age_modifier = 0.9
-        else:  # 'adult'
+        else:
             age_modifier = 1.0
 
         # Total stress score
@@ -231,29 +287,32 @@ def build_final_marts(spark: SparkSession):
 
         return float(stress_score)
 
-    spark.udf.register("compute_employment_stress_score", compute_commute_stress_score, DoubleType())
+    spark.udf.register(
+        "compute_commute_stress_score",
+        compute_commute_stress_score,
+        DoubleType(),
+    )
 
     # Define UDF 2
-    def compute_employment_stress_score(income: float, hrs_work: float, age_group: str) -> float:
+    def compute_employment_stress_score(
+        income: float, hrs_work: float, age_group: str
+    ) -> float:
         """
         Computes an employment-related stress score.
-
         Logic idea:
-        - High working hours → increases stress.
-        - Low income → increases stress.
-        - Seniors → more stress for same conditions.
-        - Gender → optional modifier (you may model different stress sensitivity by gender if desired).
-
+        - High working hours increases stress.
+        - Low income increases stress.
+        - Seniors more stress for same conditions.
         Output:
-        - Float score → higher = more stress.
-        - Normalize to e.g. [0.0, 100.0] or any scale you like.
+        - Float score -> higher = more stress.
         """
 
-        # Base stress from working hours → linear effect
-        hrs_stress = min(hrs_work / 60.0, 1.0) * 40  # 0-40 stress points
+        # Base stress from working hours
+        hrs_stress = (
+            min(hrs_work / 60.0, 1.0) * 40
+        )  # 0-40 stress points
 
-        # Income stress → inverse of income
-        # Example: income < 20000 → high stress; income > 100000 → low stress
+        # Income stress inverse of income
         if income <= 0:
             income_stress = 40.0
         elif income < 20000:
@@ -266,59 +325,63 @@ def build_final_marts(spark: SparkSession):
             income_stress = 5.0
 
         # Age modifier
-        if age_group == 'senior':
+        if age_group == "senior":
             age_modifier = 1.3
-        elif age_group == 'child':  # should not happen for paid_worker, but be safe
+        else:
             age_modifier = 1.0
-        elif age_group == 'young_adult':
-            age_modifier = 0.9
-        else:  # 'adult'
-            age_modifier = 1.0
-
 
         # Total stress score
-        stress_score = (hrs_stress + income_stress) * age_modifier 
+        stress_score = (hrs_stress + income_stress) * age_modifier
 
         return float(stress_score)
 
-    spark.udf.register("compute_commute_stress_score", compute_employment_stress_score, DoubleType())
+    spark.udf.register(
+        "compute_employment_stress_score",
+        compute_employment_stress_score,
+        DoubleType(),
+    )
 
     # Mart 1: Average income
-    dmart_income_avg = spark.sql("""
+    dmart_income_avg = spark.sql(
+        """
         SELECT gender, edu, race, age_group, ROUND(AVG(income)) AS average_income
         FROM int_population_enriched
         WHERE paid_worker = true
         GROUP BY gender, edu, race, age_group
         ORDER BY average_income;
-        """)
+        """
+    )
 
     dmart_income_avg.write.jdbc(
         url=POSTGRES_URL,
-        table="dmart_avg",
+        table="dmart_income_avg",
         mode="overwrite",
         properties=POSTGRES_PROPERTIES,
     )
-    logger.info("Built dmart_avg_income.")
+    logger.info("Built dmart_income_avg.")
 
     # Mart 2: Average hours worked
-    dmart_hrs_work = spark.sql("""
+    dmart_hrs_work_avg = spark.sql(
+        """
         SELECT gender, edu, race, age_group, ROUND(AVG(hrs_work), 1) AS average_hours
         FROM int_population_enriched
         WHERE paid_worker = true
         GROUP BY gender, edu, race, age_group
         ORDER BY average_hours DESC;
-        """)
+        """
+    )
 
-    dmart_hrs_work.write.jdbc(
+    dmart_hrs_work_avg.write.jdbc(
         url=POSTGRES_URL,
-        table="dmart_avg_hrs_work",
+        table="dmart_hrs_work_avg",
         mode="overwrite",
         properties=POSTGRES_PROPERTIES,
     )
-    logger.info("Built dmart_avg_hrs_work.")
+    logger.info("Built dmart_hrs_work_avg.")
 
     # Mart 3: Average commute stress score
-    dmart_commute_stress_score = spark.sql("""
+    dmart_commute_stress_score_avg = spark.sql(
+        """
         SELECT gender, 
                edu, 
                race, 
@@ -328,18 +391,20 @@ def build_final_marts(spark: SparkSession):
         WHERE paid_worker = true AND time_to_work > 0
         GROUP BY gender, edu, race, age_group
         ORDER BY average_commute_stress DESC;                                       
-        """)
+        """
+    )
 
-    dmart_commute_stress_score.write.jdbc(
+    dmart_commute_stress_score_avg.write.jdbc(
         url=POSTGRES_URL,
-        table="dmart_avg_commute_stress_score",
+        table="dmart_commute_stress_score_avg",
         mode="overwrite",
         properties=POSTGRES_PROPERTIES,
     )
-    logger.info("Built dmart_avg_commute_stress_score.")
+    logger.info("Built dmart_commute_stress_score_avg.")
 
     # Mart 4: Percentage of children by race
-    dmart_pct_children = spark.sql("""                                   
+    dmart_children_pct_by_race = spark.sql(
+        """                                   
         SELECT 
           race,
           ROUND(100.0 * SUM(CASE 
@@ -349,18 +414,20 @@ def build_final_marts(spark: SparkSession):
         FROM int_population_enriched
         GROUP BY race
         ORDER BY child_percentage DESC;
-    """)
+    """
+    )
 
-    dmart_pct_children.write.jdbc(
+    dmart_children_pct_by_race.write.jdbc(
         url=POSTGRES_URL,
-        table="dmart_pct_children_by_race",
+        table="dmart_children_pct_by_race",
         mode="overwrite",
         properties=POSTGRES_PROPERTIES,
     )
-    logger.info("Built dmart_pct_children_by_race.")
+    logger.info("Built dmart_children_pct_by_race.")
 
     # Mart 5: Average employment stress score
-    dmart_employment_stress_score = spark.sql("""
+    dmart_employment_stress_score_avg = spark.sql(
+        """
         SELECT gender, 
                edu, 
                race, 
@@ -371,16 +438,16 @@ def build_final_marts(spark: SparkSession):
         GROUP BY gender, edu, race, age_group 
         ORDER BY average_employment_stress DESC;
 
-    """)
+    """
+    )
 
-    dmart_employment_stress_score.write.jdbc(
+    dmart_employment_stress_score_avg.write.jdbc(
         url=POSTGRES_URL,
-        table="dmart_avg_employment_stress_score",
+        table="dmart_employment_stress_score_avg",
         mode="overwrite",
         properties=POSTGRES_PROPERTIES,
     )
-    logger.info("Built dmart_avg_employment_stress_score.")
-
+    logger.info("Built dmart_employment_stress_score_avg.")
 
 
 def orchestrate_pipeline(df_cleaned: pd.DataFrame):
@@ -394,4 +461,6 @@ def orchestrate_pipeline(df_cleaned: pd.DataFrame):
     build_final_marts(spark)
 
     spark.stop()
-    logger.info("Spark pipeline orchestration complete. Spark session stopped.")
+    logger.info(
+        "Spark pipeline orchestration complete. Spark session stopped."
+    )

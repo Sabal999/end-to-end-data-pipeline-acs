@@ -1,3 +1,13 @@
+"""
+Clean-up module for the pipeline.
+
+Functions:
+- delete_all_files_in_folder(): deletes all files in a given folder.
+- multi_cleanup(): deletes all files in multiple folders.
+
+Used to clean staging and data lake folders at the end of the pipeline run.
+"""
+
 import logging
 from pathlib import Path
 import logging
@@ -17,7 +27,7 @@ def delete_all_files_in_folder(folder_path: Path):
     logger.info(f"Deleted {file_count} files from {folder_path}")
 
 
-def initial_cleanup(*paths: Path):
+def multi_cleanup(*paths: Path):
 
     for path in paths:
         delete_all_files_in_folder(path)

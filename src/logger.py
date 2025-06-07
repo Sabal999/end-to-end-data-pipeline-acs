@@ -1,3 +1,12 @@
+"""
+Simple logging configuration module.
+
+Sets up a logger to write to output/logs/pipeline.log.
+
+Log level: INFO
+Log format: timestamp, logger name, message.
+"""
+
 import logging
 import os
 

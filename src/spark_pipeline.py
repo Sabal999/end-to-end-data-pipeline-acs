@@ -63,7 +63,7 @@ def populate_dims(spark: SparkSession):
     ]
 
     for dim_table, source_column, target_column in dims:
-        logger.info(f"Building and writing {dim_table} using SparkSQL...")
+        logger.info(f"Building and writing {dim_table}...")
         query = f"""
             SELECT DISTINCT {source_column} AS {target_column}
             FROM acs_cleaned
@@ -80,7 +80,7 @@ def populate_dims(spark: SparkSession):
         logger.info(f"Finished writing {dim_table}.")
 
 def populate_fact(spark: SparkSession):
-    logger.info("Populating FACT table fact_population (pure SparkSQL)...")
+    logger.info("Populating FACT table fact_population...")
 
     dim_tables = [
         "dim_employment",
@@ -138,7 +138,7 @@ def populate_fact(spark: SparkSession):
     logger.info("Finished populating FACT table fact_population.")
 
 def build_intermediate_mart(spark: SparkSession):
-    logger.info("Building intermediate MART int_population_enriched (pure SparkSQL)...")
+    logger.info("Building intermediate MART int_population_enriched...")
 
     spark.sql("""
         CREATE OR REPLACE TEMP VIEW int_population_enriched AS
@@ -158,20 +158,25 @@ def build_intermediate_mart(spark: SparkSession):
             birth_qrtr,
             -- Derived columns:
             CASE
-                WHEN age < 18 THEN 'child'
-                WHEN age >= 18 AND age < 30 THEN 'young_adult'
-                WHEN age >= 30 AND age < 65 THEN 'adult'
+                WHEN age < 16 THEN 'child'
+                WHEN age < 18 THEN 'adolescent'
+                WHEN age < 30 THEN 'young_adult'
+                WHEN age < 65 THEN 'adult'
                 ELSE 'senior'
-            END AS categorize_age,
+            END AS age_group,
             CASE
                 WHEN employment = 'employed' AND hrs_work > 0 AND income > 0 THEN true
                 ELSE false
             END AS paid_worker,
             CASE
-                WHEN income < 30000 THEN 'low'
-                WHEN income < 75000 THEN 'mid'
-                ELSE 'high'
-            END AS income_category
+                WHEN income < 30000 THEN 'very low'
+                WHEN income < 50000 THEN 'low'
+                WHEN income < 100000 THEN 'mid'
+                WHEN income < 200000 THEN 'high'
+                WHEN income >= 200000 THEN 'very high'
+                ELSE NULL
+            END AS income_category,
+            PERCENT_RANK() OVER (PARTITION BY gender, employment ORDER BY hrs_work) AS hrs_work_percentile
         FROM acs_cleaned
     """)
 
@@ -188,165 +193,193 @@ def build_intermediate_mart(spark: SparkSession):
 
 
 def build_final_marts(spark: SparkSession):
-    logger.info("Building DATA MARTS (pure SparkSQL)...")
+    logger.info("Building DATA MARTS...")
 
-    # Define UDF 1: compute_income_percentile
-    def compute_employment_stress_score(income: float, hrs_work: float, categorize_age: str, gender: str) -> float:
+    # Define UDF 1
+    def compute_commute_stress_score(time_to_work: float, hrs_work: float, age_group: str) -> float:
         """
-        Final UDF: compute_employment_stress_score
-        Inputs:
+        Computes a commute-related stress score.
 
-        hrs_work → hours worked per week.
+        Logic idea:
+        - Long commute time → increases stress.
+        - Long working hours → increases stress → tiredness amplifies commute stress.
+        - Seniors → higher stress from same commute.
+        - Gender → optional modifier.
 
-        income → income.
-
-        categorize_age → age group.
-
-        gender → gender.
-
-        Purpose:
-
-        Model an employment-related stress score for paid employed workers:
-
-        Long working hours → higher stress.
-
-        Low income → higher stress.
-
-        Seniors → more stress for same conditions.
-
-        Gender factor (optional) → you can add this nuance if you want.
+        Output:
+        - Float score → higher = more stress.
         """
-        return 0.0  # placeholder
 
-    spark.udf.register("compute_employment_stress_score", compute_employment_stress_score, DoubleType())
+        # Base commute stress → exponential scaling
+        commute_stress = min(time_to_work / 60.0, 1.0) ** 2 * 50  # 0-50 stress points
 
-    # Define UDF 2: compute_commute_score
-    def compute_commute_stress_score(time_to_work: float, hrs_work: float, categorize_age: str, gender: str) -> float:
+        # Work hours modifier → more hours → amplifies commute stress
+        hrs_modifier = min(hrs_work / 60.0, 1.0) * 0.5 + 1.0  # multiplier ~1.0-1.5
+
+        # Age modifier
+        if age_group == 'senior':
+            age_modifier = 1.5
+        elif age_group == 'child':  # should not happen for paid_worker
+            age_modifier = 1.0
+        elif age_group == 'young_adult':
+            age_modifier = 0.9
+        else:  # 'adult'
+            age_modifier = 1.0
+
+        # Total stress score
+        stress_score = commute_stress * hrs_modifier * age_modifier
+
+        return float(stress_score)
+
+    spark.udf.register("compute_employment_stress_score", compute_commute_stress_score, DoubleType())
+
+    # Define UDF 2
+    def compute_employment_stress_score(income: float, hrs_work: float, age_group: str) -> float:
         """
-        UDF 2 (revised): compute_commute_stress_score(time_to_work, hrs_work, categorize_age, gender)
-        👉 Idea:
+        Computes an employment-related stress score.
 
-        Commute "stress" is not only about time to work → it also depends on:
-        How many hours the person works per week (hrs_work).
-        Whether they are young/old (commute may be harder for some age groups).
-        Gender → could introduce a social factor → e.g. stress for women working long hours with long commutes.
-        What it should do:
-        Combine all these inputs into a non-trivial stress score → not easily written in plain SQL.
+        Logic idea:
+        - High working hours → increases stress.
+        - Low income → increases stress.
+        - Seniors → more stress for same conditions.
+        - Gender → optional modifier (you may model different stress sensitivity by gender if desired).
 
-        Input parameters:
-
-        Param	Meaning
-        time_to_work	Commute time in minutes.
-        hrs_work	Hours worked per week.
-        categorize_age	Age group.
-        gender	Gender.
-        Suggested logic (you will implement it!):
-        Base score starts from commute time.
-
-        Modifier based on hrs_work:
-        Very long working hours → increases stress.
-        Short hours → lower stress.
-        Modifier based on categorize_age:
-        Seniors → more stress from same commute.
-        Young adults → more resilient.
-        Modifier based on gender (if you want to model it).
-        ✅ This is very hard to write purely in SQL, because you would need many nested CASE WHEN and interactions → perfect for UDF.
+        Output:
+        - Float score → higher = more stress.
+        - Normalize to e.g. [0.0, 100.0] or any scale you like.
         """
-        return 0.0  # placeholder
 
-    spark.udf.register("compute_commute_stress_score", compute_commute_stress_score, DoubleType())
+        # Base stress from working hours → linear effect
+        hrs_stress = min(hrs_work / 60.0, 1.0) * 40  # 0-40 stress points
 
-    # Mart 1: Average income by education
-    # Description: For each education level (edu), compute the average income.
-    # Filter: Only include rows where paid_worker = true.
+        # Income stress → inverse of income
+        # Example: income < 20000 → high stress; income > 100000 → low stress
+        if income <= 0:
+            income_stress = 40.0
+        elif income < 20000:
+            income_stress = 30.0
+        elif income < 50000:
+            income_stress = 20.0
+        elif income < 100000:
+            income_stress = 10.0
+        else:
+            income_stress = 5.0
+
+        # Age modifier
+        if age_group == 'senior':
+            age_modifier = 1.3
+        elif age_group == 'child':  # should not happen for paid_worker, but be safe
+            age_modifier = 1.0
+        elif age_group == 'young_adult':
+            age_modifier = 0.9
+        else:  # 'adult'
+            age_modifier = 1.0
+
+
+        # Total stress score
+        stress_score = (hrs_stress + income_stress) * age_modifier 
+
+        return float(stress_score)
+
+    spark.udf.register("compute_commute_stress_score", compute_employment_stress_score, DoubleType())
+
+    # Mart 1: Average income
     dmart_income_avg = spark.sql("""
-        -- TODO: Write SQL to compute average income by edu, filtered on paid_worker = true
-
-        
-    """)
+        SELECT gender, edu, race, age_group, ROUND(AVG(income)) AS average_income
+        FROM int_population_enriched
+        WHERE paid_worker = true
+        GROUP BY gender, edu, race, age_group
+        ORDER BY average_income;
+        """)
 
     dmart_income_avg.write.jdbc(
         url=POSTGRES_URL,
-        table="dmart_avg_income_by_education",
+        table="dmart_avg",
         mode="overwrite",
         properties=POSTGRES_PROPERTIES,
     )
-    logger.info("Built dmart_avg_income_by_education.")
+    logger.info("Built dmart_avg_income.")
 
-    # Mart 2: Average hours worked by gender
-    # Description: For each gender, compute the average number of hours worked.
-    # Filter: Only include rows where paid_worker = true.
+    # Mart 2: Average hours worked
     dmart_hrs_work = spark.sql("""
-        -- TODO: Write SQL to compute average hrs_work by gender, filtered on paid_worker = true
-    """)
+        SELECT gender, edu, race, age_group, ROUND(AVG(hrs_work), 1) AS average_hours
+        FROM int_population_enriched
+        WHERE paid_worker = true
+        GROUP BY gender, edu, race, age_group
+        ORDER BY average_hours DESC;
+        """)
 
     dmart_hrs_work.write.jdbc(
         url=POSTGRES_URL,
-        table="dmart_avg_hrs_work_by_gender",
+        table="dmart_avg_hrs_work",
         mode="overwrite",
         properties=POSTGRES_PROPERTIES,
     )
-    logger.info("Built dmart_avg_hrs_work_by_gender.")
+    logger.info("Built dmart_avg_hrs_work.")
 
-    # Mart 3: Average commute stress score by gender
-    # Description:
-    # For each gender, compute the average commute stress score.
-    # The UDF compute_commute_stress_score should combine:
-    # - commute time (time_to_work)
-    # - hours worked (hrs_work)
-    # - categorize_age
-    # - gender
-    # Filter: Only include rows where paid_worker = true.
+    # Mart 3: Average commute stress score
     dmart_commute_stress_score = spark.sql("""
-        -- TODO: Write SQL to compute avg commute stress score by gender, using UDF compute_commute_stress_score, filtered on paid_worker = true
-    """)
+        SELECT gender, 
+               edu, 
+               race, 
+               age_group, 
+               ROUND(AVG(compute_commute_stress_score(time_to_work, hrs_work, age_group)), 2) as average_commute_stress
+        FROM int_population_enriched
+        WHERE paid_worker = true AND time_to_work > 0
+        GROUP BY gender, edu, race, age_group
+        ORDER BY average_commute_stress DESC;                                       
+        """)
 
     dmart_commute_stress_score.write.jdbc(
         url=POSTGRES_URL,
-        table="dmart_avg_commute_stress_score_by_gender",
+        table="dmart_avg_commute_stress_score",
         mode="overwrite",
         properties=POSTGRES_PROPERTIES,
     )
-    logger.info("Built dmart_avg_commute_stress_score_by_gender.")
+    logger.info("Built dmart_avg_commute_stress_score.")
 
-    # Mart 4: Percentage of children by race + gender
-    # Description: For each combination of race and gender, compute the percentage of population that are children (categorize_age = 'child').
-    # No filter — include all rows.
-    dmart_pct_children = spark.sql("""
-        -- TODO: Write SQL to compute percentage of children by race + gender (categorize_age = 'child')
+    # Mart 4: Percentage of children by race
+    dmart_pct_children = spark.sql("""                                   
+        SELECT 
+          race,
+          ROUND(100.0 * SUM(CASE 
+                              WHEN age_group = 'child' 
+                              THEN 1 ELSE 0 
+                              END) / COUNT(*), 2)  AS child_percentage
+        FROM int_population_enriched
+        GROUP BY race
+        ORDER BY child_percentage DESC;
     """)
 
     dmart_pct_children.write.jdbc(
         url=POSTGRES_URL,
-        table="dmart_pct_children_by_race_gender",
+        table="dmart_pct_children_by_race",
         mode="overwrite",
         properties=POSTGRES_PROPERTIES,
     )
-    logger.info("Built dmart_pct_children_by_race_gender.")
+    logger.info("Built dmart_pct_children_by_race.")
 
-    # Mart 5: Average employment stress score by categorize_age and gender
-    # Description:
-    # For each combination of categorize_age and gender, compute the average employment stress score.
-    # The UDF compute_employment_stress_score should combine:
-    # - hrs_work
-    # - income
-    # - categorize_age
-    # - gender
-    # Filter: Only include rows where paid_worker = true.
+    # Mart 5: Average employment stress score
     dmart_employment_stress_score = spark.sql("""
-        -- TODO: Write SQL to compute avg employment stress score by categorize_age and gender
-        -- Use UDF compute_employment_stress_score(hrs_work, income, categorize_age, gender)
-        -- Filter rows: paid_worker = true
-        -- Group by: categorize_age, gender
+        SELECT gender, 
+               edu, 
+               race, 
+               age_group, 
+               ROUND(AVG(compute_employment_stress_score(income, hrs_work, age_group)), 2) as average_employment_stress
+        FROM int_population_enriched
+        WHERE paid_worker = true AND time_to_work > 0
+        GROUP BY gender, edu, race, age_group 
+        ORDER BY average_employment_stress DESC;
+
     """)
 
     dmart_employment_stress_score.write.jdbc(
         url=POSTGRES_URL,
-        table="dmart_avg_employment_stress_score_by_age_gender",
+        table="dmart_avg_employment_stress_score",
         mode="overwrite",
         properties=POSTGRES_PROPERTIES,
     )
-    logger.info("Built dmart_avg_employment_stress_score_by_age_gender.")
+    logger.info("Built dmart_avg_employment_stress_score.")
 
 
 

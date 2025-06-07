@@ -5,7 +5,6 @@ from pathlib import Path
 import pandas as pd
 from simulate_ingestion import simulate_ingestion
 from cleaning import a_preprocess, df_drop_duplicates_merged_df
-# from loader import orchestrate_table_creation
 from clean_up import initial_cleanup
 from db_init import create_database_and_tables
 from spark_pipeline import orchestrate_pipeline
@@ -45,6 +44,10 @@ async def main():
 
     create_database_and_tables()
     orchestrate_pipeline(df)
+
+    logger.info('Pipeline has ran successfully tables have been loaded to the DWH')
+
+
     
 
 if __name__ == "__main__":

@@ -13,23 +13,24 @@ Used at the start of each pipeline run to ensure a clean database.
 import psycopg2
 import logging
 from logger import configure_logging
+import os
 
 configure_logging()
 logger = logging.getLogger(__name__ + ".py")
 
-# POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
-# POSTGRES_USER = os.getenv("POSTGRES_USER", "synthetica_user")
-# POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "synthetica_pass")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "synthetica_user")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "synthetica_pass")
 
 
 def create_database_and_tables():
     # Step 1: connect to system database → create/drop acs_dataset
     sys_conn = psycopg2.connect(
-        host="localhost",
+        host=POSTGRES_HOST,
         port=5432,
         dbname="postgres",
-        user="postgres",
-        password="Password21!!!",
+        user=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
     )
     sys_conn.autocommit = True
     sys_cur = sys_conn.cursor()
@@ -44,11 +45,11 @@ def create_database_and_tables():
 
     # Step 2: connect to acs_dataset database and create tables
     conn = psycopg2.connect(
-        host="localhost",
+        host=POSTGRES_HOST,
         port=5432,
         dbname="acs_dataset",
-        user="postgres",
-        password="Password21!!!",
+        user=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
     )
     cur = conn.cursor()
 

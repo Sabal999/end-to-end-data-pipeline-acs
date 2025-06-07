@@ -34,7 +34,6 @@ def create_database_and_tables():
     sys_cur.execute("DROP DATABASE IF EXISTS acs_dataset;")
     sys_cur.execute("CREATE DATABASE acs_dataset;")
 
-
     sys_cur.close()
     sys_conn.close()
     logger.info("Database acs_dataset created.")
@@ -91,11 +90,33 @@ def create_database_and_tables():
             time_to_work DOUBLE PRECISION,
             citizen BOOLEAN,
             married BOOLEAN,
-            disability BOOLEAN
+            disability BOOLEAN,
+            created_at TIMESTAMP DEFAULT NOW()
         );
     """
     )
     logger.info("Created table fact_population.")
+
+    # Create indexes on fact table FK's
+    cur.execute(
+        "CREATE INDEX fact_employment_id_idx ON fact_population (employment_id);"
+    )
+    cur.execute(
+        "CREATE INDEX fact_race_id_idx ON fact_population (race_id);"
+    )
+    cur.execute(
+        "CREATE INDEX fact_gender_id_idx ON fact_population (gender_id);"
+    )
+    cur.execute(
+        "CREATE INDEX fact_lang_id_idx ON fact_population (lang_id);"
+    )
+    cur.execute(
+        "CREATE INDEX fact_education_id_idx ON fact_population (education_id);"
+    )
+    cur.execute(
+        "CREATE INDEX fact_birth_qrtr_id_idx ON fact_population (birth_qrtr_id);"
+    )
+    logger.info("Creating FK indexes")
 
     # Done
     conn.commit()

@@ -8,7 +8,7 @@ from io import StringIO
 from pathlib import Path
 
 configure_logging()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__ + ".py")
 
 
 def df_cleaner(df: pd.DataFrame) -> pd.DataFrame:
@@ -104,6 +104,7 @@ def set_zero_commute_time_as_zero_for_employed(
     ] = 0
     return df
 
+
 def df_drop_duplicates_merged_df(df: pd.DataFrame) -> pd.DataFrame:
     """
     Since the data is anonymous, I had to target only employed people
@@ -115,9 +116,7 @@ def df_drop_duplicates_merged_df(df: pd.DataFrame) -> pd.DataFrame:
     length_before = len(df)
     df_filtered = df[(df["employment"] == "employed")]
     df_no_dupes = df_filtered.drop_duplicates()
-    df = pd.concat(
-        [df_no_dupes, df[(df["employment"] != "employed")]]
-    )
+    df = pd.concat([df_no_dupes, df[(df["employment"] != "employed")]])
     logger.info(
         f"{length_before - len(df)} rows removed, {len(df)} rows remaining"
     )

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 configure_logging()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__ + ".py")
 
 ENTRIES_PER_FILE = 100
 

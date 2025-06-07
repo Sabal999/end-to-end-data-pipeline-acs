@@ -9,7 +9,7 @@ from loader import orchestrate_table_creation
 from clean_up import final_cleanup
 
 configure_logging()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__ + ".py")
 
 BASE_DATA_DIR = Path("data")
 DATA_LAKE_DIR = BASE_DATA_DIR / "data_lake"
@@ -39,8 +39,10 @@ async def main():
         ignore_index=True,
     )
     df = df_drop_duplicates_merged_df(df)
-    orchestrate_table_creation(df)
-    final_cleanup(DATA_LAKE_DIR, STAGING_AREA_DIR)
+    try:
+        orchestrate_table_creation(df)
+    finally:
+        final_cleanup(DATA_LAKE_DIR, STAGING_AREA_DIR)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ from transform import (
 from pyspark.sql import DataFrame
 
 configure_logging()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__ + ".py")
 
 DATA_MART_PREFIX = "dmart"
 FACT_PREFIX = "fact"

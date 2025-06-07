@@ -18,7 +18,7 @@ from pyspark.sql.functions import when, col, isnan, lit
 from pyspark.sql.types import FloatType, DoubleType, StringType
 
 configure_logging()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__ + ".py")
 
 
 # fact_population
@@ -40,33 +40,11 @@ def apply_transformations_into_fact_population(
         else:
             return "senior"
 
-    def categorize_income_bracket(income: float) -> str:
-        if income is None:
-            return "unknown"
-        if income < 30000:
-            return "low"
-        elif income < 75000:
-            return "mid"
-        else:
-            return "high"
-
-    def categorize_income_category(income: float) -> str:
-        if income is None:
-            return "unknown"
-        if income < 30000:
-            return "very low"
-        elif income < 50000:
-            return "low"
-        elif income < 100000:
-            return "medium"
-        else:
-            return "high"
 
     def unpaid_worker(
         employment: str, hrs_work: float, income: float
     ) -> bool:
         return employment == "employed" and hrs_work > 0 and income == 0
-    
 
     def final_clean_nan(sdf):
         for field in sdf.schema.fields:
@@ -75,18 +53,21 @@ def apply_transformations_into_fact_population(
 
             if isinstance(dtype, (FloatType, DoubleType)):
                 # For float/double columns → replace NaN with NULL
-                sdf = sdf.withColumn(c, when(isnan(col(c)), None).otherwise(col(c)))
+                sdf = sdf.withColumn(
+                    c, when(isnan(col(c)), None).otherwise(col(c))
+                )
 
             elif isinstance(dtype, StringType):
                 # For string columns → replace literal "NaN" with NULL
-                sdf = sdf.withColumn(c, when(col(c) == lit("NaN"), None).otherwise(col(c)))
+                sdf = sdf.withColumn(
+                    c,
+                    when(col(c) == lit("NaN"), None).otherwise(col(c)),
+                )
 
             # other column types → leave unchanged
         return sdf
 
     age_udf = udf(categorize_age, StringType())
-    income_bracket_udf = udf(categorize_income_bracket, StringType())
-    income_category_udf = udf(categorize_income_category, StringType())
     unpaid_udf = udf(unpaid_worker, BooleanType())
 
     spark = SparkSession.builder.config(
@@ -95,12 +76,6 @@ def apply_transformations_into_fact_population(
     sdf = spark.createDataFrame(df)
 
     sdf = sdf.withColumn("age_group", age_udf(col("age")))
-    sdf = sdf.withColumn(
-        "income_bracket", income_bracket_udf(col("income"))
-    )
-    sdf = sdf.withColumn(
-        "income_category", income_category_udf(col("income"))
-    )
     sdf = sdf.withColumn(
         "is_unpaid_worker",
         unpaid_udf(col("employment"), col("hrs_work"), col("income")),
@@ -114,6 +89,22 @@ def apply_transformations_into_fact_population(
 def generate_fact_paid_workers_table(
     sdf: DataFrame,
 ) -> DataFrame:
+    
+    def categorize_income_category(income: float) -> str:
+        if income is None:
+            return "unknown"
+        if income < 30_000:
+            return "very low"
+        elif income < 50_000:
+            return "low"
+        elif income < 100_000:
+            return "medium"
+        elif income < 200_000:
+            return "high"
+        else:
+            return "very high"
+
+    income_category_udf = udf(categorize_income_category, StringType())
     window_spec = Window.partitionBy("age_group").orderBy("income")
     window_spec_desc = Window.partitionBy("age_group").orderBy(
         col("income").desc()
@@ -122,6 +113,8 @@ def generate_fact_paid_workers_table(
     paid_workers_df = sdf.filter(
         (col("employment") == "employed") & (~col("is_unpaid_worker"))
     )
+
+    paid_workers_df = paid_workers_df.withColumn("income_category", income_category_udf(col("income")))
 
     paid_workers_df = (
         paid_workers_df.withColumn(
@@ -263,5 +256,3 @@ def generate_data_mart_education_distribution_among_unemployed(
         .agg(count("*").alias("unemployed_count"))
         .orderBy(col("unemployed_count").desc())
     )
-
-

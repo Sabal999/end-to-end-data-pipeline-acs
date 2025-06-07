@@ -8,7 +8,7 @@ import logging
 from logger import configure_logging
 
 configure_logging()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__ + ".py")
 
 
 def delete_all_files_in_folder(folder_path: Path):

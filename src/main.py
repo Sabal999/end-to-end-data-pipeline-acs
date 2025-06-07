@@ -5,8 +5,10 @@ from pathlib import Path
 import pandas as pd
 from simulate_ingestion import simulate_ingestion
 from cleaning import a_preprocess, df_drop_duplicates_merged_df
-from loader import orchestrate_table_creation
-from clean_up import final_cleanup
+# from loader import orchestrate_table_creation
+from clean_up import initial_cleanup
+from db_init import create_database_and_tables
+from spark_pipeline import orchestrate_pipeline
 
 configure_logging()
 logger = logging.getLogger(__name__ + ".py")
@@ -18,6 +20,7 @@ STAGING_AREA_DIR = BASE_DATA_DIR / "staging_area"
 
 
 async def main():
+    initial_cleanup(DATA_LAKE_DIR, STAGING_AREA_DIR)
     simulate_ingestion(DATA_SOURCES_DIR, DATA_LAKE_DIR)
     # gather files from data lake
     csv_file_paths = list(DATA_LAKE_DIR.glob("*.csv"))
@@ -39,11 +42,10 @@ async def main():
         ignore_index=True,
     )
     df = df_drop_duplicates_merged_df(df)
-    try:
-        orchestrate_table_creation(df)
-    finally:
-        final_cleanup(DATA_LAKE_DIR, STAGING_AREA_DIR)
 
+    create_database_and_tables()
+    orchestrate_pipeline(df)
+    
 
 if __name__ == "__main__":
     asyncio.run(main())

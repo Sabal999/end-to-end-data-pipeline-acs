@@ -1,9 +1,5 @@
-# final_cleanup.py
-
 import logging
 from pathlib import Path
-import glob
-import os
 import logging
 from logger import configure_logging
 
@@ -21,7 +17,7 @@ def delete_all_files_in_folder(folder_path: Path):
     logger.info(f"Deleted {file_count} files from {folder_path}")
 
 
-def final_cleanup(*paths: Path):
+def initial_cleanup(*paths: Path):
 
     for path in paths:
         delete_all_files_in_folder(path)

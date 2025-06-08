@@ -10,9 +10,9 @@ spec:
         image: aandrio/pipeline_app:latest
         env:
         - name: POSTGRES_USER
-          value: "synthetica_user"
+          value: "user"
         - name: POSTGRES_PASSWORD
-          value: "synthetica_pass"
+          value: "password"
         - name: POSTGRES_HOST
           value: "postgres"
       restartPolicy: Never

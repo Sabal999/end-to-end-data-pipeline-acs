@@ -20,8 +20,8 @@ configure_logging()
 logger = logging.getLogger(__name__ + ".py")
 
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
-POSTGRES_USER = os.getenv("POSTGRES_USER", "synthetica_user")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "synthetica_pass")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "Password21!!!")
 
 
 def wait_for_pg_to_be_ready():
@@ -35,10 +35,10 @@ def wait_for_pg_to_be_ready():
                 password=POSTGRES_PASSWORD,
             )
             conn.close()
-            print("Postgres is ready!")
+            logger.info("Postgres is ready!")
             break
         except psycopg2.OperationalError:
-            print("Waiting for Postgres...")
+            logger.info("Waiting for Postgres...")
             time.sleep(2)
 
 

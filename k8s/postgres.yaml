@@ -19,9 +19,9 @@ spec:
         - containerPort: 5432
         env:
         - name: POSTGRES_USER
-          value: "synthetica_user"
+          value: "user"
         - name: POSTGRES_PASSWORD
-          value: "synthetica_pass"
+          value: "password"
         - name: POSTGRES_DB
           value: "acs_dataset"
         volumeMounts:

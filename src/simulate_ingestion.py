@@ -33,7 +33,6 @@ def simulate_ingestion(data_source_path: Path, data_lake_pth: Path):
         )
     ]
     df_length = len(split_dfs)
-    os.makedirs(data_lake_pth, exist_ok=True)
     for i, sources_aggregation_df in enumerate(split_dfs):
         filename = f"{data_lake_pth}/acs{i+1}of{df_length}.csv"
         logger.info(f"Ingesting  {filename}")

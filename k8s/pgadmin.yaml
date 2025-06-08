@@ -19,6 +19,6 @@ spec:
         - containerPort: 80
         env:
         - name: PGADMIN_DEFAULT_EMAIL
-          value: "synthetica_user"
+          value: "synthetica@user.gr"
         - name: PGADMIN_DEFAULT_PASSWORD
           value: "synthetica_pass"

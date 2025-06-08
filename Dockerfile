@@ -12,14 +12,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
-COPY src/ .
+COPY src/ src/
+
+# Copy csv dataset
+COPY data/data_sources/ data/data_sources/
 
 # Copy JDBC driver
 COPY jars/postgresql-42.7.3.jar jars/postgresql-42.7.3.jar
 
-# Create folders required
-RUN mkdir -p output/logs data
-
 # Run main pipeline script
-CMD ["python", "main.py"]
+CMD ["python", "src/main.py"]
 

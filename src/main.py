@@ -17,8 +17,9 @@ import pandas as pd
 from simulate_ingestion import simulate_ingestion
 from cleaning import a_preprocess, df_drop_duplicates_merged_df
 from clean_up import multi_cleanup
-from db_init import create_database_and_tables
+from db_init import create_database_and_tables, wait_for_pg_to_be_ready
 from spark_pipeline import orchestrate_pipeline
+import os
 
 configure_logging()
 logger = logging.getLogger(__name__ + ".py")
@@ -27,6 +28,9 @@ BASE_DATA_DIR = Path("data")
 DATA_LAKE_DIR = BASE_DATA_DIR / "data_lake"
 DATA_SOURCES_DIR = BASE_DATA_DIR / "data_sources"
 STAGING_AREA_DIR = BASE_DATA_DIR / "staging_area"
+
+os.makedirs(DATA_LAKE_DIR, exist_ok=True)
+os.makedirs(STAGING_AREA_DIR, exist_ok=True)
 
 
 async def main():
@@ -56,6 +60,9 @@ async def main():
     )
     # drop duplicates in the concatenated dataframe
     df = df_drop_duplicates_merged_df(df)
+
+    # wait for postgres connection to be established
+    wait_for_pg_to_be_ready()
 
     # prepares our database by creating empty fact and dim tables
     create_database_and_tables()

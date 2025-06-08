@@ -14,6 +14,7 @@ import psycopg2
 import logging
 from logger import configure_logging
 import os
+import time
 
 configure_logging()
 logger = logging.getLogger(__name__ + ".py")
@@ -23,8 +24,27 @@ POSTGRES_USER = os.getenv("POSTGRES_USER", "synthetica_user")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "synthetica_pass")
 
 
+def wait_for_pg_to_be_ready():
+    while True:
+        try:
+            conn = psycopg2.connect(
+                host=POSTGRES_HOST,
+                port=5432,
+                dbname="postgres",
+                user=POSTGRES_USER,
+                password=POSTGRES_PASSWORD,
+            )
+            conn.close()
+            print("Postgres is ready!")
+            break
+        except psycopg2.OperationalError:
+            print("Waiting for Postgres...")
+            time.sleep(2)
+
+
 def create_database_and_tables():
     # Step 1: connect to system database → create/drop acs_dataset
+
     sys_conn = psycopg2.connect(
         host=POSTGRES_HOST,
         port=5432,

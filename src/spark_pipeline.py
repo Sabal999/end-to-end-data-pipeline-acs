@@ -16,15 +16,15 @@ from logger import configure_logging
 from pyspark.sql import SparkSession
 from pyspark.sql.types import DoubleType
 import pandas as pd
-
+from db_init import POSTGRES_HOST, POSTGRES_PASSWORD, POSTGRES_USER
 
 configure_logging()
 logger = logging.getLogger(__name__ + ".py")
 
-POSTGRES_URL = "jdbc:postgresql://localhost:5432/acs_dataset"
+POSTGRES_URL = f"jdbc:postgresql://{POSTGRES_HOST}:5432/acs_dataset"
 POSTGRES_PROPERTIES = {
-    "user": "postgres",
-    "password": "Password21!!!",
+    "user": POSTGRES_USER,
+    "password": POSTGRES_PASSWORD,
     "driver": "org.postgresql.Driver",
 }
 
@@ -33,6 +33,7 @@ def get_spark_session():
     spark = SparkSession.builder.config(
         "spark.jars", "jars/postgresql-42.7.3.jar"
     ).getOrCreate()
+    spark.sparkContext.setLogLevel("ERROR")
     return spark
 
 
@@ -225,7 +226,7 @@ def build_intermediate_mart(spark: SparkSession):
                 WHEN income >= 200000 THEN 'very high'
                 ELSE NULL
             END AS income_category,
-            PERCENT_RANK() OVER (PARTITION BY gender, employment ORDER BY hrs_work) AS hrs_work_percentile
+            ROUND(PERCENT_RANK() OVER (PARTITION BY gender, employment ORDER BY hrs_work), 2) AS hrs_work_percentile
         FROM acs_cleaned
         ORDER BY income DESC
     """

